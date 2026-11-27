@@ -6,6 +6,8 @@ export type GeneModel = {
 	start: number
 	stop: number
 	isdefault?: boolean
+	/** a retired version of a transcript, which the gene db returns only when asked for by its accession */
+	retired?: boolean
 	hidden?: boolean
 	strand?: string
 	exon: number[][]
