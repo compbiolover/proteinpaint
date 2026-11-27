@@ -1,4 +1,5 @@
 import { mclass, dtsnvindel, dtfusionrna, dtsv, dtcnv, dtitd, bplen, dt2label } from '#shared/common.js'
+import { sameAccession } from '#shared/helpers.js'
 import { init_sampletable, getSamples, displaySampleTable } from './sampletable'
 import { appear, renderTable, table2col, makeSsmLink, isoformPairRangeSelect } from '#dom'
 import { dofetch3 } from '#common/dofetch'
@@ -746,7 +747,7 @@ async function getGeneModels(genome, gene, preferredIsoform) {
 		const data = await dofetch3('genelookup', { body: { genome: genome.name, input: gene, deep: 1 } })
 		if (data.error) throw data.error
 		const gmlst = data.gmlst || []
-		const preferred = gmlst.filter(gm => gm.isoform == preferredIsoform)
+		const preferred = gmlst.filter(gm => sameAccession(gm.isoform, preferredIsoform))
 		if (preferred.length) return preferred
 		const defaults = gmlst.filter(gm => gm.isdefault)
 		return defaults.length ? defaults : gmlst

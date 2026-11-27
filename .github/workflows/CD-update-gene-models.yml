@@ -1,0 +1,54 @@
+name: "Update gene models"
+# Builds the hg38 gene annotation files from the latest RefSeq, GENCODE and HGNC releases, see
+# utils/genes/build_hg38.py, and opens an issue with what changed. It publishes nothing: the files
+# are a workflow artifact for a person to review and upload, see .claude/skills/update-gene-models
+
+on:
+  # once a year, October 20 at 15:10 UTC: NCBI's yearly GRCh38 annotation release (August) has
+  # reached UCSC by then
+  schedule:
+    - cron: '10 15 20 10 *'
+  workflow_dispatch:
+    inputs:
+      gencode:
+        description: GENCODE release, e.g. 50; empty for the latest at UCSC
+        required: false
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Build
+        env:
+          GENCODE: ${{ inputs.gencode }}
+        run: |
+          pip install pysam
+          python3 utils/genes/build_hg38.py --out "$RUNNER_TEMP/genes" --cache "$RUNNER_TEMP/downloads" ${GENCODE:+--gencode "$GENCODE"}
+          cat "$RUNNER_TEMP/genes/diff.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: hg38-gene-models
+          path: ${{ runner.temp }}/genes
+          retention-days: 30
+
+      - name: Open an issue for review
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            cat "$RUNNER_TEMP/genes/diff.md"
+            echo
+            echo "The files are the \`hg38-gene-models\` artifact of $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID, kept for 30 days."
+            echo "To review and release them, follow \`.claude/skills/update-gene-models/SKILL.md\`."
+          } > body.md
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "hg38 gene models $(date +%F) ready for review" --body-file body.md

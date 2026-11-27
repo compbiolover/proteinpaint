@@ -115,3 +115,83 @@ tape('a non-string lookup is a miss, not a throw', test => {
 	}
 	test.end()
 })
+
+/* the default RefSeq and GENCODE isoform of five well known genes, as a gene db built before
+transcript versions were kept stores them, and as one built by utils/genes/build_hg38.py does */
+const landmarks: [string, string, string][] = [
+	['TP53', 'NM_000546.6', 'ENST00000269305.9'],
+	['EZH2', 'NM_004456.5', 'ENST00000320356.7'],
+	['KRAS', 'NM_004985.5', 'ENST00000311936.8'],
+	['BRAF', 'NM_004333.6', 'ENST00000646891.2'],
+	['MYC', 'NM_002467.6', 'ENST00000621592.8']
+]
+function makeLandmarkDb(versioned: boolean) {
+	const db = new Database(':memory:')
+	db.exec(`create table genes (name character varying(50) collate nocase, isoform character varying(50) collate nocase,
+		isdefault smallint, genemodel json)`)
+	const insert = db.prepare('insert into genes values (?,?,1,?)')
+	for (const [name, ...accessions] of landmarks) {
+		for (const accession of accessions) {
+			const isoform = versioned ? accession : accession.split('.')[0]
+			insert.run(name, isoform, JSON.stringify({ name, isoform }))
+		}
+	}
+	const genedb: any = {
+		db,
+		getjsonbyisoform: db.prepare('select isdefault,genemodel from genes where isoform=?')
+	}
+	initGeneDbLookups(genedb, new Set(['genes']))
+	return genedb
+}
+
+tape('an isoform is found at any version, in a gene db with or without versions', test => {
+	for (const versioned of [false, true]) {
+		const genedb = makeLandmarkDb(versioned)
+		const label = versioned ? 'versioned db' : 'unversioned db'
+		for (const [name, ...accessions] of landmarks) {
+			for (const accession of accessions) {
+				const base = accession.split('.')[0]
+				const stored = versioned ? accession : base
+				// as stored, without a version, at the current version, at a retired or future one, in lower case
+				for (const input of [base, accession, base + '.1', base + '.99', accession.toLowerCase()]) {
+					test.equal(
+						genedb.resolveIsoform(input).toUpperCase(),
+						stored.toUpperCase(),
+						`${label}: ${input} -> ${stored}`
+					)
+					test.deepEqual(genedb.getnamebyisoform.get(input), { name }, `${label}: ${input} is of ${name}`)
+					test.deepEqual(
+						genedb.getnamebynameorisoform.get(input, input),
+						{ name },
+						`${label}: ${input} by name or isoform`
+					)
+					test.equal(
+						JSON.parse(genedb.getjsonbyisoform.get(input).genemodel).isoform,
+						stored,
+						`${label}: model of ${input}`
+					)
+					test.equal(genedb.getjsonbyisoform.all(input).length, 1, `${label}: one model of ${input}`)
+				}
+			}
+			test.equal(genedb.resolveIsoform(name), undefined, `${label}: the symbol ${name} is not an isoform`)
+		}
+		for (const input of ['NM_999999', 'NM_999999.1', 'ENST99999999999.1', 'NM_000546.6.1', '', undefined]) {
+			test.equal(genedb.resolveIsoform(input), undefined, `${label}: ${input} is unknown`)
+			test.equal(genedb.getjsonbyisoform.get(input ?? ''), undefined, `${label}: no model of ${input}`)
+		}
+	}
+	test.end()
+})
+
+tape('a gene db holding several versions of a transcript', test => {
+	const db = new Database(':memory:')
+	// the EZH2 hotspot is Y641 on NM_004456.1 (746 aa) and Y646 on NM_004456.5 (751 aa)
+	db.exec(`create table genes (name character collate nocase, isoform character collate nocase);
+		insert into genes values ('EZH2', 'NM_004456.1'), ('EZH2', 'NM_004456.5'), ('EZH2', 'NM_004456.10'), ('EZH2', 'NM_004456.2');`)
+	const genedb: any = { db }
+	initGeneDbLookups(genedb, new Set(['genes']))
+	test.equal(genedb.resolveIsoform('NM_004456.1'), 'NM_004456.1', 'a stored version is returned as asked for')
+	test.equal(genedb.resolveIsoform('NM_004456'), 'NM_004456.10', 'no version: the latest, compared as a number')
+	test.equal(genedb.resolveIsoform('NM_004456.3'), 'NM_004456.10', 'a version the db does not hold: the latest')
+	test.end()
+})

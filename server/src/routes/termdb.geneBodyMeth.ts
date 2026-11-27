@@ -2,7 +2,7 @@ import type { RouteApi, RoutePayload } from '#types'
 import serverconfig from '#src/serverconfig.js'
 import { mayLog } from '#src/helpers.ts'
 import { sql } from '#src/sql.ts'
-import { formatElapsedTime } from '#shared'
+import { formatElapsedTime, stripAccessionVersion } from '#shared'
 import {
 	resolveMethylationMatrix,
 	requireCpgShards,
@@ -263,7 +263,9 @@ export function isoformLoci(
 	const locusOf = new Map<string, { chr: string; start: number; stop: number }>()
 	for (const r of rows) {
 		// ids compare in upper case, as the gene db's collate nocase does; keep holds them so
-		const id = r.isoform.toUpperCase()
+		let id = r.isoform.toUpperCase()
+		// a gene db may store the version that the asked-for id does not carry
+		if (!keep.has(id)) id = stripAccessionVersion(id)
 		if (!keep.has(id) || locusOf.has(id)) continue
 		const gm = JSON.parse(r.genemodel)
 		if (chrs && !chrs.has(gm.chr)) continue
@@ -312,7 +314,9 @@ function lociByChr(genome: any, region?: 'promoter', isoforms?: string[]) {
 		const major = new Set(validateChromosomes(genome, undefined, true))
 		// upper case: the db matches ids case-insensitively, and the loci are keyed in upper case
 		const ids = isoforms.map(i => i.toUpperCase())
-		locusOf = isoformLoci(isoformRows(db, ids), new Set(ids), region, major)
+		// query by the accession as the db stores it, which may carry a version that ids do not
+		const stored = ids.map(i => genome.genedb.resolveIsoform?.(i) || i)
+		locusOf = isoformLoci(isoformRows(db, stored), new Set(ids), region, major)
 	} else if (region == 'promoter') {
 		const rows: any[] = genome?.genedb?.db?.prepare('select name, genemodel from genes where isdefault=1').all() || []
 		if (!rows.length) throw new Error('This genome has no default isoforms.')

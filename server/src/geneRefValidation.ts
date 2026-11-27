@@ -274,6 +274,7 @@ export function isKnownGeneName(genome: any, name: string): boolean {
 	const db = genome.genedb
 	const key = upper(name)
 	if (db.mapByName.has(key)) return true
+	if (db.resolveIsoform?.(name)) return true // an accession at any version, or none
 	if (db.mapByIsoform.has(key)) return true
 	if (db.mapByAlias?.has(key)) return true
 	if (db.mapCanonicalIsoformByEnsg?.has(key)) return true
@@ -285,6 +286,7 @@ export function isKnownGeneName(genome: any, name: string): boolean {
 /** Does the genome's gene db know this isoform accession? */
 export function isKnownIsoform(genome: any, accession: string): boolean {
 	if (genome.genomicNameRegexp.test(accession)) return false
+	if (genome.genedb.resolveIsoform?.(accession)) return true
 	if (genome.genedb.mapByIsoform.has(upper(accession))) return true
 	const unversioned = stripAccessionVersion(accession)
 	if (unversioned != accession) return isKnownIsoform(genome, unversioned)

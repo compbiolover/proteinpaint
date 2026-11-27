@@ -13,6 +13,7 @@ import * as d3scale from 'd3-scale'
 import * as d3 from 'd3'
 import { DTCNV, DTFUSION, DTITD, DTSNVINDEL, DTSV } from '#types'
 import { HYPER_COLOR, HYPO_COLOR } from './dmrColors.js'
+import { sameAccession } from './helpers.js'
 
 // moved from `#shared/terms` to here, so that this can be passed as
 // part of 'common' argument to exported dataset js function, at server runtime
@@ -1151,7 +1152,7 @@ export function vcfcopymclass(m, block) {
 
 		if (block.usegm) {
 			// block is in gm mode, find a csq matching with the genemodel isoform
-			useone = m.csq.find(i => i._isoform == block.usegm.isoform)
+			useone = m.csq.find(i => sameAccession(i._isoform, block.usegm.isoform))
 			if (!useone) {
 				// no match to usegm isoform
 				if (block.gmmode == 'genomic') {
@@ -1197,7 +1198,7 @@ export function vcfcopymclass(m, block) {
 		let useone: any = null
 		if (block.usegm) {
 			for (const q of m.ann) {
-				if (q._isoform != block.usegm.isoform) continue
+				if (!sameAccession(q._isoform, block.usegm.isoform)) continue
 				if (useone) {
 					if (q._csqrank < useone._csqrank) {
 						useone = q

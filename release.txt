@@ -1,1 +1,5 @@
+Features:
+- A gene or isoform can be opened by a transcript accession at any version or without one (NM_004456, NM_004456.5, ENST00000320356.7), and mutation and methylation data are matched to a gene model the same way, so that a gene database that keeps transcript versions works alongside one that does not
 
+DevOps:
+- utils/genes/build_hg38.py builds the hg38 RefSeq and GENCODE tracks and the gene database from the current UCSC and HGNC releases with transcript versions kept, and reports what changed; the "Update gene models" workflow runs it every October

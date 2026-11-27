@@ -31,7 +31,17 @@ what the request validation does.
 
 Lookups are case-insensitive, matching the `collate nocase` of every column
 these tables index on.
+
+ACCESSION VERSIONS
+A gene db stores its isoform accessions either without a version (NM_004456) or
+with one (NM_004456.5), and a request may carry either form whatever the db
+holds. genedb.resolveIsoform() maps what was asked for to what is stored: the
+exact accession when the db has it, else the stored accession of the same
+transcript, which for a db holding several versions is the latest. Every isoform
+getter goes through it, so no call site has to know which form the db uses.
 *******************************************************************************/
+
+import { stripAccessionVersion } from '#shared/helpers.js'
 
 /** a row of the genes table, minus the genemodel json */
 type GeneRow = { name: string; isoform: string | null }
@@ -90,6 +100,10 @@ export function initGeneDbLookups(genedb: any, tables: Set<string>): void {
 	const mapByName = new Map<string, string>()
 	/** k: uppercased isoform accession, v: the gene name it belongs to */
 	const mapByIsoform = new Map<string, string>()
+	/** k: uppercased accession without its version, v: the versioned accession as stored; the
+	 * latest version when the db has several. Empty for a db that stores no versions */
+	const mapIsoformByBase = new Map<string, string>()
+	const versionOf = (accession: string) => Number(accession.slice(accession.lastIndexOf('.') + 1))
 	for (const row of genedb.db.prepare('select name, isoform from genes').iterate() as Iterable<GeneRow>) {
 		const name = intern(row.name)
 		const nameKey = upper(row.name)
@@ -98,25 +112,55 @@ export function initGeneDbLookups(genedb: any, tables: Set<string>): void {
 		if (row.isoform) {
 			const isoformKey = upper(row.isoform)
 			if (!mapByIsoform.has(isoformKey)) mapByIsoform.set(isoformKey, name)
+			const baseKey = stripAccessionVersion(isoformKey)
+			if (baseKey != isoformKey) {
+				const held = mapIsoformByBase.get(baseKey)
+				if (!held || versionOf(row.isoform) > versionOf(held)) mapIsoformByBase.set(baseKey, row.isoform)
+			}
 		}
 	}
 	genedb.mapByName = mapByName
 	genedb.mapByIsoform = mapByIsoform
+
+	/* the accession this db stores for the transcript asked for, undefined when it has none.
+	The result differs from the input when the db stores another version, or stores the
+	accession with a version and the input has none, or the other way around */
+	const resolveIsoform = (accession: unknown): string | undefined => {
+		if (typeof accession != 'string') return
+		const key = upper(accession)
+		if (mapByIsoform.has(key)) return accession
+		const baseKey = stripAccessionVersion(key)
+		return mapByIsoform.has(baseKey) ? baseKey : mapIsoformByBase.get(baseKey)
+	}
+	genedb.resolveIsoform = resolveIsoform
+	const nameByIsoform = (isoform: unknown) => {
+		const stored = resolveIsoform(isoform)
+		return stored ? mapByIsoform.get(upper(stored)) : undefined
+	}
 
 	genedb.getnamebynameorisoform = {
 		// replaces: select name from genes where name=? or isoform=?
 		get: (name: string, isoform: string) => {
 			const byName = typeof name == 'string' ? mapByName.get(upper(name)) : undefined
 			if (byName) return { name: byName }
-			const byIsoform = typeof isoform == 'string' ? mapByIsoform.get(upper(isoform)) : undefined
+			const byIsoform = nameByIsoform(isoform)
 			return byIsoform ? { name: byIsoform } : undefined
 		}
 	}
 	genedb.getnamebyisoform = {
 		// replaces: select distinct name from genes where isoform=?
 		get: (isoform: string) => {
-			const name = typeof isoform == 'string' ? mapByIsoform.get(upper(isoform)) : undefined
+			const name = nameByIsoform(isoform)
 			return name ? { name } : undefined
+		}
+	}
+
+	if (genedb.getjsonbyisoform) {
+		// the sql statement matches the stored accession only, so hand it that
+		const statement = genedb.getjsonbyisoform
+		genedb.getjsonbyisoform = {
+			get: (isoform: string) => statement.get(resolveIsoform(isoform) ?? isoform),
+			all: (isoform: string) => statement.all(resolveIsoform(isoform) ?? isoform)
 		}
 	}
 

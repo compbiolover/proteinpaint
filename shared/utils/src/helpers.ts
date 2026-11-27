@@ -134,11 +134,19 @@ export class CustomError extends Error {
 }
 
 /* ENSG00000141510.16 -> ENSG00000141510, NM_000546.6 -> NM_000546, and species-qualified Ensembl
-ids such as ENSMUST00000108658.2 (ENS, a species code, a feature letter, 11 digits). Gene db rows
-carry no version, while a client or a counts file may. Only applied to something shaped like an
+ids such as ENSMUST00000108658.2 (ENS, a species code, a feature letter, 11 digits). A gene db, a
+client and a data file may each carry a version or not. Only applied to something shaped like an
 accession, so that a gene symbol ending in a number (MIR1-1, and any future symbol with a dot) is
 left alone. */
 const versionedAccession = /^(?:[a-z]{2,6}_?\d+|ens[a-z]{1,5}\d{11})\.\d+$/i
 export function stripAccessionVersion(value: string): string {
 	return versionedAccession.test(value) ? value.replace(/\.\d+$/, '') : value
+}
+
+/* Whether two accessions name the same transcript or gene, whatever version each carries, if any:
+NM_004456, NM_004456.1 and nm_004456.5 are all the same. For matching an accession of a data file
+or a url against one of a gene model, as the two are rarely annotated on the same release. */
+export function sameAccession(a: unknown, b: unknown): boolean {
+	if (typeof a != 'string' || typeof b != 'string') return false
+	return stripAccessionVersion(a).toUpperCase() == stripAccessionVersion(b).toUpperCase()
 }

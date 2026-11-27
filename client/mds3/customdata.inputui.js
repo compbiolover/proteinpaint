@@ -1,6 +1,7 @@
 import { mclasscolor2table } from '#src/client'
 import { dofetch3 } from '#common/dofetch'
 import * as common from '#shared/common.js'
+import { sameAccession } from '#shared/helpers.js'
 import * as coord from '#src/coord'
 
 /*
@@ -148,7 +149,7 @@ export async function parseFusion(l, mlst, selecti, block) {
 	{
 		const d = await dofetch3('genelookup', { body: { deep: 1, genome: block.genome.name, input: gene1 } })
 		if (d.error) throw 'invalid gene1'
-		const gm = d.gmlst.find(i => i.isoform == isoform1)
+		const gm = d.gmlst.find(i => sameAccession(i.isoform, isoform1))
 		if (!gm) throw 'invalid isoform1'
 		m.gene1 = gene1
 		m.chr1 = gm.chr
@@ -160,7 +161,7 @@ export async function parseFusion(l, mlst, selecti, block) {
 	{
 		const d = await dofetch3('genelookup', { body: { deep: 1, genome: block.genome.name, input: gene2 } })
 		if (d.error) throw 'invalid gene2'
-		const gm = d.gmlst.find(i => i.isoform == isoform2)
+		const gm = d.gmlst.find(i => sameAccession(i.isoform, isoform2))
 		if (!gm) throw 'invalid isoform2'
 		m.gene2 = gene2
 		m.chr2 = gm.chr

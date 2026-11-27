@@ -9,6 +9,7 @@ import * as client from './client'
 import { dofetch3, setAuth, clearServerDataCache } from '#common/dofetch'
 import { findgenemodel_bysymbol } from './gene'
 import * as common from '#shared/common.js'
+import { sameAccession } from '#shared/helpers.js'
 import { bulkui, bulkembed } from './bulk.ui'
 import { string2pos } from './coord'
 import { loadstudycohort } from './tp.init'
@@ -1326,7 +1327,7 @@ async function getGm(p, genome) {
 	})
 	if (d.error) throw d.error
 	if (!Array.isArray(d.gmlst)) throw 'gmlst not array'
-	const u = d.gmlst.find(i => i.isoform == p.isoform)
+	const u = d.gmlst.find(i => sameAccession(i.isoform, p.isoform))
 	if (!u) throw 'no match to isoform'
 	p.chr = u.chr
 	p.name = u.name
