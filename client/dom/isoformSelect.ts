@@ -1,5 +1,6 @@
 import { sketchGmsum, sketchProtein, setupCanvas } from './sketchGm'
 import { exoncolor } from '#shared/common.js'
+import { isoformLabel } from '#common/transcriptVersion'
 import type {
 	GeneModel,
 	ExonRegion,
@@ -268,7 +269,7 @@ export function isoformSelect(opts: IsoformSelectOpts) {
 			!multiSelect && usegm && gm.isoform == usegm.isoform && gm.chr == usegm.chr && gm.start == usegm.start
 		const lab = tr
 			.append('td')
-			.text(gm.isoform)
+			.text(isoformLabel(gm))
 			.style('color', isActive ? '#cc0000' : '#545454')
 		if (!multiSelect) {
 			gmlabellst.push({ isoform: gm.isoform, chr: gm.chr, start: gm.start, label: lab })
@@ -607,7 +608,7 @@ function renderIsoformRows(a: {
 			.style('font-size', '.8em')
 			.style('color', gm.isdefault ? hoverColor : '#545454')
 			.attr('title', gm.isoform)
-			.text(gm.isoform)
+			.text(isoformLabel(gm))
 		const row = a.graphCol.append('div').style('height', a.rowHeight + 'px')
 		// the same intron width the scale accumulates its regions with, or the sketch would
 		// not line up with the marks and links placed over it

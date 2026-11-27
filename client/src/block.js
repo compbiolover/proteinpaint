@@ -42,6 +42,7 @@ import {
 } from './block.tk.bigwigstranded'
 import { bedjfromtemplate, bedjmaketk, bedjload, bedjloadsubpanel } from './block.tk.bedj'
 import { gmtkfromtemplate, gmtkmaketk, gmtkrender } from './block.tk.usegm'
+import { isoformLabel, showsVersions, setShowVersions } from '#common/transcriptVersion'
 import { hicstrawfromtemplate, hicstrawmaketk, hicstrawload, hicstrawloadsubpanels } from './block.tk.hicstraw.adaptor'
 
 import { mdsjunctionfromtemplate, mdsjunctionmaketk, mdsjunctionload } from './block.mds.junction.adaptor'
@@ -437,13 +438,13 @@ export class Block {
 				.html(
 					'<span data-testid="sja_block_usegm_name" style="font-size:1.5em;font-weight:bold">' +
 						this.usegm.name +
-						'</span> ' +
-						this.usegm.isoform
+						'</span> <span data-testid="sja_block_usegm_isoform"></span>'
 				)
 				.on('click', event => {
 					event.stopPropagation()
 					this.genemenu()
 				})
+			this.ctrl.namebutt.select('[data-testid=sja_block_usegm_isoform]').text(isoformLabel(this.usegm))
 			butrow.append('span').html('&nbsp;&nbsp;&nbsp;')
 
 			butrow
@@ -842,6 +843,8 @@ export class Block {
 				for (const t of this.genome.tracks) {
 					if (t.iscustom) continue
 					tklookup.set(t.name.toLowerCase(), t)
+					// the name this track had, which embedding pages and saved links still ask for
+					if (t.name == 'RefSeq') tklookup.set('refgene', t)
 				}
 			}
 
@@ -2019,7 +2022,7 @@ reverseorient() {
 
 		const p2 = sec1.append('div').style('margin-top', '10px')
 
-		p2.append('span').text(gm.isoform).style('padding-right', '10px')
+		p2.append('span').text(isoformLabel(gm)).style('padding-right', '10px')
 
 		p2.append('a')
 			.attr('target', '_blank')
@@ -3354,7 +3357,8 @@ seekrange(chr,start,stop) {
 							if (i.x1 < p[0] && i.x2 > p[0] && y < p[1] && y + tk.stackheight > p[1]) {
 								stacknumber = i.y
 								lst.push(
-									i.name +
+									// the name of a transcript is its gene and its accession
+									(i.isoform ? i.name.replace(i.isoform, isoformLabel(i.isoform)) : i.name) +
 										' <span style="font-size:.7em">' +
 										i.chr +
 										':' +
@@ -3374,7 +3378,8 @@ seekrange(chr,start,stop) {
 							if (i.x1 < p[0] && i.x2 > p[0] && y < p[1] && y + tk.stackheight > p[1]) {
 								stacknumber = i.y
 								lst.push(
-									i.name +
+									// the name of a transcript is its gene and its accession
+									(i.isoform ? i.name.replace(i.isoform, isoformLabel(i.isoform)) : i.name) +
 										' <span style="font-size:.7em">' +
 										i.chr +
 										':' +
@@ -4519,6 +4524,14 @@ seekrange(chr,start,stop) {
 		this.gdcBamSliceDownloadBtn.style('display', show ? 'inline-block' : 'none')
 	}
 
+	/* redraws the accessions that are on screen, after the user chose to see or hide versions */
+	showTranscriptVersions() {
+		if (this.usegm) this.ctrl.namebutt?.select('[data-testid=sja_block_usegm_isoform]').text(isoformLabel(this.usegm))
+		for (const tk of this.tklst) {
+			if (tk.type == client.tkt.usegm) gmtkrender(tk, this)
+		}
+	}
+
 	moremenu(tip) {
 		// a row of buttons
 		{
@@ -4552,6 +4565,33 @@ seekrange(chr,start,stop) {
 						this.toggleIdeogram()
 						tip.hide()
 					})
+			}
+		}
+
+		// transcript versions and the release of the gene models, hidden unless asked for
+		{
+			const label = tip.d.append('label').style('display', 'block').style('margin-bottom', '10px')
+			label
+				.append('input')
+				.attr('type', 'checkbox')
+				.attr('data-testid', 'sjpp-show-transcript-versions')
+				.property('checked', showsVersions())
+				.on('change', event => {
+					setShowVersions(event.target.checked)
+					this.showTranscriptVersions()
+					this.moremenu(tip.clear())
+				})
+			label.append('span').text(' Show transcript versions and gene model release')
+			const release = this.genome.geneModels
+			if (showsVersions() && release?.date) {
+				tip.d
+					.append('div')
+					.attr('data-testid', 'sjpp-gene-model-release')
+					.style('margin', '0px 0px 10px 22px')
+					.style('font-size', '.8em')
+					.style('opacity', 0.75)
+					.style('max-width', '420px')
+					.text(`Gene models built ${release.date}${release.sources ? '. ' + release.sources : ''}`)
 			}
 		}
 

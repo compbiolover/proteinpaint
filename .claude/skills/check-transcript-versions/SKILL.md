@@ -6,7 +6,7 @@ description: Verify that ProteinPaint finds well known transcripts (TP53, EZH2, 
 # Check transcript version handling
 
 A gene db stores isoform accessions either without a version (dbs built through 2025:
-`NM_004456`) or with one (`utils/genes/build_hg38.py`: `NM_004456.5`). Requests, urls, saved
+`NM_004456`) or with one (`utils/genes/build_genes.py`: `NM_004456.5`). Requests, urls, saved
 sessions and data files carry either form. All of them must reach the same transcript.
 
 ## Steps
@@ -38,6 +38,11 @@ sessions and data files carry either form. All of them must reach the same trans
    accession of each form.
 
 ## Where versions are handled
+
+- Versions are stored and matched everywhere, but shown only when the user turns on "Show
+  transcript versions and gene model release" in the More menu of a gene or genome view.
+  `isoformLabel()` in `client/common/transcriptVersion.js` decides what is drawn: use it for any
+  accession put on screen, never `gm.isoform` directly.
 
 - The gene view shows a note (`mayShowVersionNote()` in `client/src/block.init.js`) when the
   transcript opened is a retired version, or is not the version that was asked for.

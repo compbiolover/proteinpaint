@@ -12,7 +12,7 @@ export default {
 			translatecoding: true, // instructs to translate coding:[]
 			file: 'anno/ncbiRefSeq.rn6.gz',
 			type: 'bedj',
-			name: 'RefGene',
+			name: 'RefSeq',
 			stackheight: 16,
 			stackspace: 1,
 			vpad: 4,

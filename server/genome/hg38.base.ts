@@ -59,7 +59,7 @@ export function getHg38(): Genome {
 				translatecoding: true,
 				file: 'anno/refGene.hg38.gz',
 				type: 'bedj',
-				name: 'RefGene',
+				name: 'RefSeq',
 				stackheight: 16,
 				stackspace: 1,
 				vpad: 4,

@@ -3,7 +3,9 @@ Features:
 - A retired RefSeq transcript version (NM_004456.1) opens its own gene model when the gene database has it, and the gene view says when the transcript shown is a retired version or is not the version that was asked for
 - The items of a bigBed gene track keep the version of their transcript accession
 - The isoform menu marks the MANE Select and MANE Plus Clinical transcripts of a gene, when the gene database names them
-- utils/genes/build_hg38.py also builds the protein domain database, from the domains and sites that NCBI's Conserved Domain Database currently annotates on each RefSeq protein; a GENCODE transcript with the same coding exons as a RefSeq transcript shows the same domains
+- utils/genes/build_genes.py also builds the protein domain database, from the domains and sites that NCBI's Conserved Domain Database currently annotates on each RefSeq protein; a GENCODE transcript with the same coding exons as a RefSeq transcript shows the same domains
+- The gene track "RefGene" is named "RefSeq", which is what it holds; a page that asks for the native track "RefGene" still gets it
+- Transcript accessions are shown without their version unless "Show transcript versions and gene model release" is turned on in the More menu, which also shows when and from which releases the gene models were built
 
 DevOps:
-- utils/genes/build_hg38.py builds the hg38 RefSeq and GENCODE tracks and the gene database from the current UCSC and HGNC releases with transcript versions kept, and reports what changed; the "Update gene models" workflow runs it every October
+- utils/genes/build_genes.py builds the RefSeq and GENCODE tracks and the gene database of hg38, hg19 and mm10 from the current UCSC and HGNC releases with transcript versions kept, and reports what changed; the "Update gene models" workflow runs it every October

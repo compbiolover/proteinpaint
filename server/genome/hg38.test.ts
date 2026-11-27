@@ -48,7 +48,7 @@ const genome: Genome = {
 			translatecoding: true,
 			file: 'anno/refGene.hg38.test.gz',
 			type: 'bedj',
-			name: 'RefGene',
+			name: 'RefSeq',
 			stackheight: 16,
 			stackspace: 1,
 			vpad: 4,

@@ -117,7 +117,7 @@ tape('a non-string lookup is a miss, not a throw', test => {
 })
 
 /* the default RefSeq and GENCODE isoform of five well known genes, as a gene db built before
-transcript versions were kept stores them, and as one built by utils/genes/build_hg38.py does */
+transcript versions were kept stores them, and as one built by utils/genes/build_genes.py does */
 const landmarks: [string, string, string][] = [
 	['TP53', 'NM_000546.6', 'ENST00000269305.9'],
 	['EZH2', 'NM_004456.5', 'ENST00000320356.7'],

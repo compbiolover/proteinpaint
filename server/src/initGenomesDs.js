@@ -316,6 +316,8 @@ export async function initGenomesDs(serverconfig, opts = {}) {
 			}
 			if (tables.has('buildDate')) {
 				g.genedb.get_buildDate = g.genedb.db.prepare('select date from buildDate')
+				// {date, sources?}: when and from which releases the gene models were built; sources is in newer dbs only
+				g.genedb.build = g.genedb.db.prepare('select * from buildDate').get()
 			}
 
 			// this table is only used for gdc dataset

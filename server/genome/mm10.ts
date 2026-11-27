@@ -12,7 +12,7 @@ export default {
 			translatecoding: true,
 			file: 'anno/refGene.mm10.gz',
 			type: 'bedj',
-			name: 'RefGene',
+			name: 'RefSeq',
 			stackheight: 16,
 			stackspace: 1,
 			vpad: 4,

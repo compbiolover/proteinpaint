@@ -1,7 +1,8 @@
 /*
 Runs the server's gene lookups against two real gene dbs and prints, for well known transcripts
 asked for without a version, at the current version and at a retired one, which model each db
-opens. Exits 1 when an accession does not resolve, or resolves to another gene, in either db.
+opens. Exits 1 when an accession does not resolve in the new db, or resolves to another gene in
+either. For a human genome: the transcripts are those of human genes.
 A protein length that differs between the two dbs is printed for review, not failed: a db that
 holds retired versions opens the retired model, and a new release may change a current one.
 
@@ -61,9 +62,10 @@ for (const [gene, inputs] of cases) {
 	for (const input of inputs) {
 		const a = opened(oldDb, input)
 		const b = opened(newDb, input)
-		const ok = a?.name == gene && b?.name == gene
+		// the new db must find it; the old one may not have known the name at all, e.g. an ENSG before aliases held them
+		const ok = b?.name == gene && (!a || a.name == gene)
 		if (!ok) failed++
-		const note = ok && a.cdslen != b.cdslen ? '  <- protein length differs, review' : ''
+		const note = ok && a && a.cdslen != b.cdslen ? '  <- protein length differs, review' : ''
 		console.log(
 			`${ok ? 'ok  ' : 'FAIL'} ${gene.padEnd(6)} ${input.padEnd(19)} old: ${show(a).padEnd(26)} new: ${show(b)}${note}`
 		)

@@ -8,7 +8,7 @@ description: Rebuild the hg38 gene annotation of ProteinPaint (RefSeq, GENCODE, 
 Done once a year, in the fall: NCBI publishes one GRCh38 RefSeq annotation release a year (August),
 UCSC picks it up a few weeks later, and GENCODE has released twice by then.
 
-The build is `utils/genes/build_hg38.py`. Read its docstring first: it lists the sources and the
+The build is `utils/genes/build_genes.py`. Read its docstring first: it lists the sources and the
 rule behind each table. It writes `refGene.hg38.gz`, `gencode.v<N>.hg38.gz`, `genes.hg38.db`,
 `proteindomain.db`, `diff.md` and `diff.json`. Accessions keep their version (`NM_004456.5`); the server finds a
 transcript at any version or none (`resolveIsoform()` in `server/src/genedbLookups.ts`).
@@ -18,7 +18,7 @@ transcript at any version or none (`resolveIsoform()` in `server/src/genedbLooku
 1. Build, either here or by running the "Update gene models" workflow and downloading its artifact:
    ```
    pip install pysam
-   python3 utils/genes/build_hg38.py --out <dir outside the repo>
+   python3 utils/genes/build_genes.py --genome hg38 --out <dir outside the repo>
    ```
    It needs `hgdownload.soe.ucsc.edu`, `ftp.ncbi.nlm.nih.gov`, `storage.googleapis.com` and
    `proteinpaint.stjude.org`, about
@@ -52,6 +52,15 @@ transcript at any version or none (`resolveIsoform()` in `server/src/genedbLooku
      lacks the file does not start, which is why this waits for the upload)
    - adds a line to `release.txt` naming the RefSeq source date and the GENCODE release
 
+## hg19 and mm10
+
+The same script builds them (`--genome hg19`, `--genome mm10`), but their sources are frozen:
+rebuild them only when the script changes, not every year. hg19 shares the protein domain db with
+hg38, so build hg38 first and pass `--domains <hg38 out>/proteindomain.db` to the hg19 build.
+mm10 has no MANE, no HGNC aliases, no protein domains, and no default GENCODE isoform, since
+GENCODE M25 does not mark a canonical transcript. After the upload, hg19 needs its GENCODE file
+name in `server/genome/hg19.ts`, and mm10 a GENCODE track added to `server/genome/mm10.ts`.
+
 ## Not covered
 
 - A GENCODE transcript with no RefSeq transcript of the same coding exons has no protein domains,
@@ -62,7 +71,7 @@ transcript at any version or none (`resolveIsoform()` in `server/src/genedbLooku
 
 - The GDC gene db (GENCODE v36, frozen with each GDC data release) and `genes.hg38.mmrf.db`
   (GENCODE v32) are pinned on purpose. Do not rebuild them here.
-- hg19, mm10 and the other genomes have no builder in this repo.
+- mm9, dm3, dm6, rn6 and the other genomes have no builder in this repo.
 - Retired RefSeq versions (`ncbiRefSeqHistorical`) go in the `retiredgenes` table and open only
   when asked for by their exact accession. GENCODE has no such table: a retired ENST version
   opens the current model, with a note in the gene view.
