@@ -10,7 +10,7 @@ UCSC picks it up a few weeks later, and GENCODE has released twice by then.
 
 The build is `utils/genes/build_hg38.py`. Read its docstring first: it lists the sources and the
 rule behind each table. It writes `refGene.hg38.gz`, `gencode.v<N>.hg38.gz`, `genes.hg38.db`,
-`diff.md` and `diff.json`. Accessions keep their version (`NM_004456.5`); the server finds a
+`proteindomain.db`, `diff.md` and `diff.json`. Accessions keep their version (`NM_004456.5`); the server finds a
 transcript at any version or none (`resolveIsoform()` in `server/src/genedbLookups.ts`).
 
 ## Steps
@@ -22,7 +22,7 @@ transcript at any version or none (`resolveIsoform()` in `server/src/genedbLooku
    ```
    It needs `hgdownload.soe.ucsc.edu`, `ftp.ncbi.nlm.nih.gov`, `storage.googleapis.com` and
    `proteinpaint.stjude.org`, about
-   2 GB of disk and 3 minutes. It stops on its own if the result would break a server (`selfcheck()`).
+   3 GB of disk and 6 minutes. It stops on its own if the result would break a server (`selfcheck()`).
    If a host is blocked, say which one and stop; do not build from a partial set of sources.
 
 2. Read `diff.md` and judge it, do not just pass it on. Expect a few hundred to a few thousand
@@ -41,8 +41,10 @@ transcript at any version or none (`resolveIsoform()` in `server/src/genedbLooku
 
 3. Run the `check-transcript-versions` skill on the previous and the new gene db.
 
-4. Hand over. You cannot publish the files: a person uploads the three data files and the two
-   `.tbi` to `ppSupport` and to each server's `tp/anno/`. Give them `diff.md` and your findings.
+4. Hand over. You cannot publish the files: a person uploads the gene db, the two tracks and
+   their `.tbi` to `ppSupport` and to each server's `tp/anno/`, and `proteindomain.db` to
+   `tp/anno/db/`. The gene db and the domain db go together: the domain db is keyed by the
+   versioned accessions of the gene db it was built with. Give them `diff.md` and your findings.
 
 5. Only after they confirm the upload, open a PR that:
    - sets the GENCODE file name in `server/genome/hg38.base.ts` and
@@ -52,9 +54,11 @@ transcript at any version or none (`resolveIsoform()` in `server/src/genedbLooku
 
 ## Not covered
 
-- Protein domains (`anno/db/proteindomain.db`) are a separate file with no builder here. They are
-  positioned on the transcripts of 2020, so a transcript whose protein changed since then has its
-  domains drawn at the wrong residues.
+- A GENCODE transcript with no RefSeq transcript of the same coding exons has no protein domains,
+  nor does a retired version, nor a transcript whose protein NCBI has revised since the RefSeq
+  release being built. The report line "Protein domains" gives the counts; a drop of more than a
+  few hundred RefSeq transcripts against the previous year means NCBI's weekly protein files have
+  moved well ahead of the release UCSC serves, and is worth reporting.
 
 - The GDC gene db (GENCODE v36, frozen with each GDC data release) and `genes.hg38.mmrf.db`
   (GENCODE v32) are pinned on purpose. Do not rebuild them here.

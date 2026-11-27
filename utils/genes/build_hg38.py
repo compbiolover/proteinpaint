@@ -6,6 +6,7 @@ the version of every transcript accession (NM_004456.5, ENST00000320356.7):
   <out>/refGene.hg38.gz(.tbi)        RefSeq track, from UCSC ncbiRefSeqCurated
   <out>/gencode.v<N>.hg38.gz(.tbi)   GENCODE track, from UCSC wgEncodeGencodeCompV<N> and PseudoGeneV<N>
   <out>/genes.hg38.db                gene db
+  <out>/proteindomain.db             protein domains and sites of each coding transcript
   <out>/diff.md, diff.json           what changed against the previous gene db
 
 The gene db also holds the retired RefSeq versions (NM_004456.1), from UCSC ncbiRefSeqHistorical,
@@ -27,6 +28,14 @@ Rules, all checked to reproduce the 2025-10-19 gene db from the same sources:
   version, says so in its "mane" attribute
 - GENCODE rows: every row of the comprehensive and pseudogene sets; default isoform and gene2canonicalisoform:
   the Ensembl_canonical tag; description: kgXref
+- protein domains: the features that NCBI's Conserved Domain Database annotates on a RefSeq protein,
+  from the weekly RefSeq protein files, the only ones that carry them. Keyed by the transcript
+  accession with its version. The positions are residue numbers, so a transcript gets the domains
+  of its own protein only, matched on the protein accession and version that ncbiRefSeqLink gives
+  it: the weekly files may be ahead of the annotation release that UCSC serves, and a transcript
+  whose protein they have since revised gets no domains. A GENCODE transcript gets the domains of a RefSeq transcript
+  with the same coding exons, which is the same protein. Features that NCBI copies from UniProt
+  (modified residues, interaction regions) are left out
 - genealias: HGNC alias and previous symbols, and the ENSG accession of a gene
 - codingGenes: genes with a coding RefSeq transcript; gene2coord: span of the default RefSeq
   isoform, or the widest one of a gene that has no default
@@ -41,6 +50,9 @@ from email.utils import parsedate_to_datetime
 UCSC = 'https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/'
 HGNC = 'https://storage.googleapis.com/public-download-files/hgnc/tsv/tsv/hgnc_complete_set.txt'
 MANE = 'https://ftp.ncbi.nlm.nih.gov/refseq/MANE/MANE_human/current/'
+PROTEINS = 'https://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/mRNA_Prot/'
+# the source database of a CDD model, as the last part of a feature note names it -> key of a domain row
+DOMAIN_SOURCES = {'pfam': 'Pfam', 'smart': 'SMART', 'cd': 'Curated_at_NCBI', 'COG': 'COG', 'TIGR': 'TIGRFAM', 'PRK': 'PRK'}
 OLD_DB = 'https://proteinpaint.stjude.org/ppSupport/genes.hg38.db'
 # genes that every build must have a default RefSeq and GENCODE isoform for
 LANDMARKS = ['TP53', 'KRAS', 'EZH2', 'MYC', 'BRAF', 'EGFR', 'RUNX1', 'SETD2', 'KMT2D', 'BCR', 'ABL1']
@@ -90,6 +102,100 @@ def mane_release(cache):
 		if l[9].startswith('MANE '):
 			status[l[5]] = status[l[7]] = l[9][5:]
 	return found.group(1), status
+
+
+def protein_features(path):
+	"""a GenPept flat file -> (protein accession with version, protein length, [domain row]) of each protein, for the
+	Region and Site features that carry a CDD cross reference"""
+
+	def flush():
+		if feature and 'CDD' in feature['q'] and feature['key'] in ('Region', 'Site'):
+			q = feature['q']
+			note, _, source = q.get('note', '').rpartition('; ')
+			if feature['key'] == 'Site' or not re.fullmatch(r'[A-Za-z]+\d+', source):
+				note, source = q.get('note', ''), ''
+			row = {'name': q.get('region_name') or q.get('site_type') or 'other', 'description': note}
+			# a domain names the model it is a hit of; a motif or site within one has no link of its own
+			if source:
+				row['CDD'] = q['CDD']
+				key = DOMAIN_SOURCES.get(re.sub(r'\d+$', '', source))
+				if key:
+					row[key] = source
+			# a site is one or more residues or ranges, each its own row
+			for part in re.findall(r'(\d+)(?:\.\.>?(\d+))?', feature['loc']):
+				record[2].append({**row, 'start': int(part[0]), 'stop': int(part[1] or part[0])})
+
+	record = feature = name = None
+	with gzip.open(path, 'rt', encoding='utf-8', errors='replace') as fh:
+		for line in fh:
+			if line.startswith('LOCUS'):
+				record, feature = [None, int(line.split()[2]), []], None
+			elif line.startswith('VERSION') and record:
+				record[0] = line.split()[1]
+			elif line.startswith('     ') and line[5] != ' ':
+				flush()
+				key, loc = line.split()[:2]
+				feature, name = {'key': key, 'loc': loc, 'q': {}}, None
+			elif feature and line.startswith(' ' * 21):
+				text = line.strip()
+				found = re.match(r'/(\w+)="?(.*)', text)
+				if found:
+					name, text = found.group(1), found.group(2)
+					if name == 'db_xref' and text.startswith('CDD:'):
+						name, text = 'CDD', text[4:]
+					feature['q'][name] = text.rstrip('"')
+				elif name == 'note' or name == 'region_name':  # a value continued on the next line
+					feature['q'][name] = (feature['q'][name] + ' ' + text).rstrip('"')
+			elif line.startswith(('ORIGIN', '//')) and record:
+				flush()
+				if record[0] and record[2]:
+					yield tuple(record)
+				record = feature = None
+
+
+def build_domains(args, refseq, gencode, protein, today):
+	"""writes proteindomain.db; returns a line for the report"""
+	with urllib.request.urlopen(PROTEINS) as r:
+		files = sorted(set(re.findall(r'human\.\d+\.protein\.gpff\.gz', r.read().decode())))
+	if not files:
+		raise SystemExit('no protein files found at ' + PROTEINS)
+	paths = [fetch(PROTEINS + name, args.cache) for name in files]
+	released = source_dates[files[0]]
+	# the protein of a transcript: what its coding exons spell, so the same exons are the same protein
+	cds = lambda chrom, m: (chrom, m['strand'], json.dumps(m['coding']))
+	by_protein = {}
+	for path in paths:
+		for accession, aa, features in protein_features(path):
+			by_protein[accession] = aa, [json.dumps(f, separators=(',', ':')) for f in features]
+	domains = {}
+	for chrom, _, _, m in refseq:
+		aa, features = by_protein.get(protein.get(m['isoform']), (None, None))
+		# also the protein length of the gene model, which differs for a model on an alt contig
+		if 'cdslen' in m and aa == m['cdslen'] // 3 - 1 and is_primary(chrom):
+			domains[m['isoform']] = features
+	by_cds = {}
+	for chrom, _, _, m in refseq:
+		if m['isoform'] in domains and is_primary(chrom):
+			by_cds.setdefault(cds(chrom, m), m['isoform'])
+	copied = {}
+	for chrom, _, _, m, _ in gencode:
+		if 'cdslen' in m and is_primary(chrom) and cds(chrom, m) in by_cds:
+			copied[m['isoform']] = domains[by_cds[cds(chrom, m)]]
+
+	dbfile = os.path.join(args.out, 'proteindomain.db')
+	if os.path.exists(dbfile):
+		os.remove(dbfile)
+	db = sqlite3.connect(dbfile)
+	db.executescript('CREATE TABLE domain (isoform varchar(30) not null, data json not null); CREATE TABLE buildDate (date char(100), sources text);')
+	db.executemany('insert into domain values (?,?)', [(i, d) for src in (domains, copied) for i, lst in src.items() for d in lst])
+	db.execute('insert into buildDate values (?,?)', (today, f'NCBI CDD features of the RefSeq proteins of {released}'))
+	db.execute('CREATE INDEX domain_isoform on domain(isoform collate nocase)')
+	db.commit()
+	assert len(domains) > 40000, f'only {len(domains)} RefSeq transcripts have domains'
+	for gene in LANDMARKS:
+		for src in (domains, copied):
+			assert any(m['name'] == gene and m['isoform'] in src and m.get('mane') == 'Select' for g in (refseq, gencode) for m in (x[3] for x in g)), f'{gene} has no domains on its MANE Select transcript'
+	return f'Protein domains: NCBI RefSeq proteins of {released}; {len(domains)} RefSeq and {len(copied)} GENCODE transcripts.'
 
 
 def base(accession):
@@ -169,7 +275,9 @@ def build(args):
 	old_db = args.old_db or fetch(OLD_DB, args.cache)
 
 	# ---------- RefSeq
-	product = {l[0]: l[3] for l in rows(f('ncbiRefSeqLink'))}
+	product, protein = {}, {}  # description and protein accession of each transcript
+	for l in rows(f('ncbiRefSeqLink')):
+		product[l[0]], protein[l[0]] = l[3], l[5]
 	mane_version, mane = mane_release(args.cache)
 	select = {l[1] for l in rows(f('ncbiRefSeqSelect'))}
 	# a gene's MANE Select transcript is its default; RefSeq Select decides only for a gene with none
@@ -284,7 +392,8 @@ CREATE INDEX gene2canonicalisoform_gene on gene2canonicalisoform(gene);
 	db.commit()
 
 	selfcheck(db)
-	diff(old, db, args.out, today, sources)
+	domains = build_domains(args, refseq, gencode, protein, today)
+	diff(old, db, args.out, today, sources + '\n\n' + domains)
 	print(f'built {dbfile}: {sources}', file=sys.stderr)
 
 
