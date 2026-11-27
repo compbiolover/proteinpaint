@@ -1,4 +1,5 @@
 import * as client from './client'
+import { isoformLabel } from '#common/transcriptVersion'
 import { table2col } from '#dom'
 import { scaleLinear } from 'd3-scale'
 import { axisBottom } from 'd3-axis'
@@ -53,7 +54,7 @@ export function gmtkfromtemplate(tk) {
 
 export function gmtkmaketk(tk, block) {
 	tk.tklabel.text(block.usegm.name)
-	tk.isoformlabel = block.maketklefthandle(tk, 13).attr('class', null).text(block.usegm.isoform)
+	tk.isoformlabel = block.maketklefthandle(tk, 13).attr('class', null).text(isoformLabel(block.usegm))
 	domainlegend(tk, block)
 	tk.config_handle = block.maketkconfighandle(tk).on('click', () => {
 		configpanel(tk, block)
@@ -82,7 +83,7 @@ function configpanel(tk, block) {
 	// change isoform
 	const tr2 = table.append('tr')
 	if (block.allgm.length > 1) {
-		tr2.append('td').text(block.usegm.isoform)
+		tr2.append('td').text(isoformLabel(block.usegm))
 		tr2
 			.append('td')
 			.attr('class', 'sja_menuoption')
@@ -276,7 +277,7 @@ export function gmtkrender(tk, block) {
 			render1gm(gm, h, tk, block)
 			const thislab = gm.__tkg
 				.append('text')
-				.text(gm.isoform)
+				.text(isoformLabel(gm))
 				.attr('y', h / 2)
 				.attr('x', -12)
 				.attr('text-anchor', 'end')
@@ -303,7 +304,7 @@ export function gmtkrender(tk, block) {
 		tk.tklabel.text(block.usegm.name).each(function () {
 			collectlabw.push(this.getBBox().width)
 		})
-		tk.isoformlabel.text(block.usegm.isoform).each(function () {
+		tk.isoformlabel.text(isoformLabel(block.usegm)).each(function () {
 			collectlabw.push(this.getBBox().width)
 		})
 	}
@@ -355,7 +356,7 @@ block:
 			.attr('font-size', Math.min(15, h))
 			.attr('x', block.width / 2)
 			.attr('y', h / 2)
-			.text(gm.name + ' ' + gm.isoform + ' is not in view range')
+			.text(gm.name + ' ' + isoformLabel(gm) + ' is not in view range')
 		return
 	}
 	// right side of visible part of gm
@@ -1144,7 +1145,7 @@ function customdomainmakeui(block, tk, proteinDomainUI) {
 	wrapper
 		.append('label')
 		.attr('for', textAreaId)
-		.html(`Add domains for ${block.usegm.name} <span style="font-size:.8em">${block.usegm.isoform}</span>`)
+		.html(`Add domains for ${block.usegm.name} <span style="font-size:.8em">${isoformLabel(block.usegm)}</span>`)
 	const lst = client.getdomaintypes(block.usegm)
 
 	const customd = []

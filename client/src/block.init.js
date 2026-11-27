@@ -1,6 +1,7 @@
 import { scaleOrdinal } from 'd3-scale'
 import { gmmode } from './client'
 import { nt2aa, codon_stop, bplen, proteinDomainColorScale } from '#shared/common.js'
+import { sameAccession, stripAccessionVersion } from '#shared/helpers.js'
 import { select } from 'd3-selection'
 import { dofetch3 } from '#common/dofetch'
 import { first_genetrack_tolist } from '#common/1stGenetk'
@@ -314,6 +315,8 @@ async function step3(arg) {
 		}
 	}
 
+	mayShowVersionNote(arg)
+
 	const b = await import('./block')
 
 	// quick fix to make block instance available to caller
@@ -345,4 +348,38 @@ async function step3(arg) {
 		onloadalltk_always: arg.onloadalltk_always,
 		onAddRemoveTk: arg.onAddRemoveTk
 	})
+}
+
+/* Tells the user when the transcript shown is a retired version, or is not the version that was
+asked for: the residue numbers of two versions of a transcript may differ, e.g. the EZH2 hotspot
+is Y641 on NM_004456.1 and Y646 on NM_004456.5 */
+function mayShowVersionNote(arg) {
+	const m = arg.model,
+		q = arg.query
+	let msg
+	if (m.retired) {
+		const current = arg.allmodels.find(i => !i.retired && sameAccession(i.isoform, m.isoform))
+		msg = `${m.isoform} is a retired version of this transcript${
+			current ? `; the current one is ${current.isoform}` : ''
+		}.`
+	} else if (
+		typeof q == 'string' &&
+		stripAccessionVersion(q) != q &&
+		sameAccession(q, m.isoform) &&
+		q.toUpperCase() != m.isoform.toUpperCase()
+	) {
+		msg = `Showing ${m.isoform}: ${q} was asked for, and this gene database does not have that version.`
+	}
+	if (!msg) return
+	arg.holder
+		.append('div')
+		.attr('data-testid', 'sjpp-isoform-version-note')
+		.attr('role', 'note')
+		.style('margin', '10px')
+		.style('padding', '8px 12px')
+		.style('border-left', '4px solid #a65a00')
+		.style('background', '#fbefdf')
+		.style('display', 'inline-block')
+		// q is user input, so never .html()
+		.text(msg + ' Positions on the two versions may differ.')
 }

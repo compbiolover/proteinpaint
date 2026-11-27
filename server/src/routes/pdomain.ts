@@ -1,3 +1,4 @@
+import { stripAccessionVersion } from '#shared'
 import type { PdomainRequest, PdomainResponse, RouteApi, RoutePayload } from '#types'
 
 const payload: RoutePayload = {
@@ -40,7 +41,12 @@ function init({ genomes }) {
 			const lst: any[] = []
 			for (const isoform of isoforms) {
 				if (g.genomicNameRegexp.test(isoform)) continue
-				const tmp = g.proteindomain.getbyisoform.all(isoform)
+				let tmp = g.proteindomain.getbyisoform.all(isoform)
+				/* domains are keyed by the accession without its version, and are positioned on the current
+				version: found for an accession that carries one, but not for a retired version, whose
+				residue numbers may differ */
+				if (!tmp.length && !g.genedb?.mapRetiredIsoform?.has(String(isoform).toUpperCase()))
+					tmp = g.proteindomain.getbyisoform.all(stripAccessionVersion(String(isoform)))
 				// FIXME returned {data} is text not json
 				lst.push({
 					name: isoform,

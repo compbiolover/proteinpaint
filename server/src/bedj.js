@@ -6,6 +6,7 @@ import * as utils from './utils.js'
 import serverconfig from './serverconfig.js'
 import { nt2aa } from '#shared/common.js'
 import { parseBedLine } from './bedj.parseBed.js'
+import { stripAccessionVersion, sameAccession } from '#shared/helpers.js'
 
 // a module-local copy, since serverconfig.cachedir is deleted before the server starts listening
 const cachedir = serverconfig.cachedir
@@ -969,7 +970,8 @@ function checkCoding(j) {
 function filterItems(_items, req) {
 	let filterByName
 	if (req.query.filterByName) {
-		filterByName = new Set(req.query.filterByName.split(/[\s\n]/).map(i => i.trim()))
+		// accessions are compared without their version, as the client and the track file may differ on it
+		filterByName = new Set(req.query.filterByName.split(/[\s\n]/).map(i => stripAccessionVersion(i.trim())))
 	}
 	const items = []
 
@@ -988,7 +990,7 @@ function filterItems(_items, req) {
 		}
 		if (filterByName) {
 			if (i.isoform) {
-				if (!filterByName.has(i.isoform)) continue
+				if (!filterByName.has(stripAccessionVersion(i.isoform))) continue
 			} else if (i.name) {
 				if (!filterByName.has(i.name)) continue
 			} else {
@@ -1152,7 +1154,7 @@ async function query_file(q, tkfile, dir, flag_gm, gmisoform) {
 							return
 						}
 					}
-					if (j.isoformonly && j.isoformonly != gmisoform) {
+					if (j.isoformonly && !sameAccession(j.isoformonly, gmisoform)) {
 						// this is specific for what? idr per isoforms?
 						return
 					}

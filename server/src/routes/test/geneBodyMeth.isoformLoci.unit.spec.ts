@@ -90,5 +90,10 @@ tape('isoformLoci() matches ids regardless of case', test => {
 	const rows = [model('enst9', 'chr1', 10000, 50000, '+')]
 	const loci = isoformLoci(rows, new Set(['ENST9']))
 	test.ok(loci.has('ENST9'), 'a lower-case db id is keyed in upper case')
+	const versioned = isoformLoci(
+		[model('ENST00000269305.9', 'chr17', 7661778, 7687546, '-')],
+		new Set(['ENST00000269305'])
+	)
+	test.ok(versioned.has('ENST00000269305'), 'a db id with a version is keyed by the id asked for, which has none')
 	test.end()
 })

@@ -6,6 +6,7 @@ import type {
 	MethylationLocusBin,
 	MethylationLocusSample
 } from '#types'
+import { sameAccession } from '#shared'
 import { getData } from '#src/termdb.matrix.js'
 import { authApi } from '#src/auth.js'
 import { protectedRoutes } from '#src/auth/protectedRoutes.ts'
@@ -85,7 +86,7 @@ async function getLocus(q: MethylationLocusRequest, ds: any, genome: any): Promi
 			.map(r => ({ ...JSON.parse(r.genemodel), isdefault: !!r.isdefault }))
 		if (!models.length) throw new Error(`Unknown gene: ${q.gene}`)
 		// the requested isoform, else the default one; expression stays gene-level either way
-		gm = q.isoform ? models.find(g => g.isoform == q.isoform) : models.find(g => g.isdefault) || models[0]
+		gm = q.isoform ? models.find(g => sameAccession(g.isoform, q.isoform)) : models.find(g => g.isdefault) || models[0]
 		if (!gm) throw new Error(`Unknown isoform of ${q.gene}: ${q.isoform}`)
 	} else if (!q.region) throw new Error('gene or region is required')
 	const region = q.region

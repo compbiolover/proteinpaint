@@ -82,6 +82,7 @@ function clientcopy_genome(genomename, genomes) {
 		name: genomename,
 		hasSNP: g.snp ? true : false,
 		hasIdeogram: g.genedb.hasIdeogram,
+		geneModels: g.genedb.build,
 		blat: g.blat ? true : false,
 		geneset: g.geneset,
 		defaultcoord: g.defaultcoord,

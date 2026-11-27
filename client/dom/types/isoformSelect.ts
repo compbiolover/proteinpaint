@@ -6,6 +6,10 @@ export type GeneModel = {
 	start: number
 	stop: number
 	isdefault?: boolean
+	/** set on the transcript that MANE names for its gene, at the exact version MANE names */
+	mane?: 'Select' | 'Plus Clinical'
+	/** a retired version of a transcript, which the gene db returns only when asked for by its accession */
+	retired?: boolean
 	hidden?: boolean
 	strand?: string
 	exon: number[][]

@@ -1,5 +1,12 @@
 import tape from 'tape'
-import { convertUnits, getValueConversionFactor, toUserUnit, toStoredUnit, stripAccessionVersion } from '../helpers.js'
+import {
+	convertUnits,
+	getValueConversionFactor,
+	toUserUnit,
+	toStoredUnit,
+	stripAccessionVersion,
+	sameAccession
+} from '../helpers.js'
 
 /*
 Tests the term.valueConversion{} helpers
@@ -17,7 +24,11 @@ silently rewrites a saved q. these specs pin both directions and the loss of the
 
 // gdc "age at diagnosis": stored in days, read in years
 const dayToYear = { fromUnit: 'day', toUnit: 'year', scaleFactor: 1 / 365.25 }
-const ageTerm = { name: 'age at diagnosis', type: 'integer', valueConversion: dayToYear }
+const ageTerm = {
+	name: 'age at diagnosis',
+	type: 'integer',
+	valueConversion: dayToYear
+}
 const plainTerm = { name: 'age (years)', type: 'integer' }
 
 function closeTo(test, actual, expected, eps, msg) {
@@ -69,7 +80,9 @@ tape('getValueConversionFactor()', function (test) {
 	)
 	// a dataset may supply the factor as a string, as json config often does
 	test.equal(
-		getValueConversionFactor({ valueConversion: { scaleFactor: '0.0027397260273972603' } }),
+		getValueConversionFactor({
+			valueConversion: { scaleFactor: '0.0027397260273972603' }
+		}),
 		0.0027397260273972603,
 		'Should cast a numeric string scaleFactor'
 	)
@@ -199,5 +212,16 @@ tape('stripAccessionVersion()', test => {
 	test.equal(stripAccessionVersion('ENST00000256078'), 'ENST00000256078', 'an unversioned id is left as is')
 	test.equal(stripAccessionVersion('MIR1-1'), 'MIR1-1', 'a gene symbol is left alone')
 	test.equal(stripAccessionVersion('ABCDEFGH12.3'), 'ABCDEFGH12.3', 'a long non-Ensembl prefix is left alone')
+	test.end()
+})
+
+tape('sameAccession()', test => {
+	test.ok(sameAccession('NM_004456', 'NM_004456.5'), 'with and without a version')
+	test.ok(sameAccession('NM_004456.1', 'NM_004456.5'), 'two versions of a transcript')
+	test.ok(sameAccession('enst00000320356.7', 'ENST00000320356'), 'case does not matter')
+	test.ok(sameAccession('TP53', 'tp53'), 'a name that is not an accession compares as is')
+	test.notOk(sameAccession('NM_004456.5', 'NM_0044565'), 'the version is not part of the number')
+	test.notOk(sameAccession('NM_004456', 'NM_001203247'), 'two transcripts of a gene')
+	test.notOk(sameAccession(undefined, undefined), 'a missing accession matches nothing')
 	test.end()
 })

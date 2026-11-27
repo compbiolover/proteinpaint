@@ -5,6 +5,7 @@ import { itemtable } from './block.ds.itemtable'
 import * as client from './client'
 import * as coord from './coord'
 import * as common from '#shared/common.js'
+import { sameAccession } from '#shared/helpers.js'
 import { duplicate as svduplicate } from '#shared/bulk.sv.js'
 import * as vcftk from './block.ds.vcf'
 import { rendernumerictk } from './block.ds.numericmode'
@@ -158,7 +159,7 @@ async function dstkload_fromclientdata(tk, block) {
 		if (mlst.length) {
 			const isoformmatch = []
 			for (const m of mlst) {
-				if (m.isoform && m.isoform == block.usegm.isoform) {
+				if (sameAccession(m.isoform, block.usegm.isoform)) {
 					isoformmatch.push(m)
 				}
 			}

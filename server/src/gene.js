@@ -27,6 +27,10 @@ export function getResult(g, q) {
 			// see if query string match directly with gene symbol
 			const tmp = g.genedb.getnamebynameorisoform.get(q.input, q.input)
 			if (tmp) symbol = tmp.name
+			/* input is an isoform that the db stores at another version, or with/without one; tell
+			the client which of the returned models is the one it asked for */
+			const stored = g.genedb.resolveIsoform?.(q.input)
+			if (stored && stored.toUpperCase() != q.input.toUpperCase()) result.found_isoform = stored
 		}
 		if (!symbol) {
 			// input does not directly match with symbol
@@ -61,6 +65,8 @@ export function getResult(g, q) {
 			symbol = q.input
 		}
 		const tmp = g.genedb.getjsonbyname.all(symbol)
+		// a retired version is not among the models of its gene; add it when it is the one asked for
+		if (g.genedb.mapRetiredIsoform?.has(q.input.toUpperCase())) tmp.push(...g.genedb.getjsonbyisoform.all(q.input))
 		result.gmlst = tmp.map(i => {
 			const j = JSON.parse(i.genemodel)
 			/* gene coordinate is from bed files with start=0-based, and stop=not included for feature display
