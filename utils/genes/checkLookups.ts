@@ -49,7 +49,8 @@ function opened(g: any, input: string) {
 	const asked = (r.found_isoform || input).toUpperCase()
 	return primary.find((m: any) => m.isoform.toUpperCase() == asked) || primary.find((m: any) => m.isdefault)
 }
-const show = (m: any) => (m ? `${m.isoform} ${m.cdslen ? Math.floor(m.cdslen / 3) - 1 + ' aa' : 'noncoding'}` : 'NOT FOUND')
+const show = (m: any) =>
+	m ? `${m.isoform} ${m.cdslen ? Math.floor(m.cdslen / 3) - 1 + ' aa' : 'noncoding'}` : 'NOT FOUND'
 
 const [oldFile, newFile] = process.argv.slice(2)
 if (!oldFile || !newFile) throw 'usage: checkLookups.ts <old genes db> <new genes db>'
