@@ -20,7 +20,8 @@ transcript at any version or none (`resolveIsoform()` in `server/src/genedbLooku
    pip install pysam
    python3 utils/genes/build_hg38.py --out <dir outside the repo>
    ```
-   It needs `hgdownload.soe.ucsc.edu`, `storage.googleapis.com` and `proteinpaint.stjude.org`, about
+   It needs `hgdownload.soe.ucsc.edu`, `ftp.ncbi.nlm.nih.gov`, `storage.googleapis.com` and
+   `proteinpaint.stjude.org`, about
    2 GB of disk and 3 minutes. It stops on its own if the result would break a server (`selfcheck()`).
    If a host is blocked, say which one and stop; do not build from a partial set of sources.
 
@@ -32,6 +33,9 @@ transcript at any version or none (`resolveIsoform()` in `server/src/genedbLooku
      that still use the old symbol, unless the old one is now in `genealias`
    - "Transcripts removed" far above the previous year's count, which means a source table moved
      or changed format rather than that biology changed
+   - a build stopped by "the MANE release does not match this annotation": MANE names exact
+     versions, so its current release must be the one made from the RefSeq and GENCODE releases
+     being built. Report which of the three is behind; do not loosen the check
    - a RefSeq source date that has not moved since the previous build: then only GENCODE and
      HGNC are new, and the report should say so
 
@@ -47,6 +51,10 @@ transcript at any version or none (`resolveIsoform()` in `server/src/genedbLooku
    - adds a line to `release.txt` naming the RefSeq source date and the GENCODE release
 
 ## Not covered
+
+- Protein domains (`anno/db/proteindomain.db`) are a separate file with no builder here. They are
+  positioned on the transcripts of 2020, so a transcript whose protein changed since then has its
+  domains drawn at the wrong residues.
 
 - The GDC gene db (GENCODE v36, frozen with each GDC data release) and `genes.hg38.mmrf.db`
   (GENCODE v32) are pinned on purpose. Do not rebuild them here.

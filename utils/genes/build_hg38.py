@@ -20,15 +20,19 @@ currently published at proteinpaint.stjude.org/ppSupport is downloaded. The prev
 needed for the diff report and for the chrM rows, which no source table below has.
 
 Rules, all checked to reproduce the 2025-10-19 gene db from the same sources:
-- RefSeq rows: every row of ncbiRefSeqCurated; default isoform: member of ncbiRefSeqSelect
-  (RefSeq Select / MANE); description: ncbiRefSeqLink.product
+- RefSeq rows: every row of ncbiRefSeqCurated; default isoform: the MANE Select transcript of the
+  gene, else a member of ncbiRefSeqSelect (RefSeq Select); description: ncbiRefSeqLink.product
+- MANE: the NCBI summary of the current MANE release names each MANE Select and MANE Plus Clinical
+  transcript as a versioned RefSeq/Ensembl pair. A gene model that is one of them, at that exact
+  version, says so in its "mane" attribute
 - GENCODE rows: every row of the comprehensive and pseudogene sets; default isoform and gene2canonicalisoform:
   the Ensembl_canonical tag; description: kgXref
 - genealias: HGNC alias and previous symbols, and the ENSG accession of a gene
 - codingGenes: genes with a coding RefSeq transcript; gene2coord: span of the default RefSeq
   isoform, or the widest one of a gene that has no default
 
-Network: hgdownload.soe.ucsc.edu, storage.googleapis.com (HGNC), proteinpaint.stjude.org.
+Network: hgdownload.soe.ucsc.edu, ftp.ncbi.nlm.nih.gov (MANE), storage.googleapis.com (HGNC),
+proteinpaint.stjude.org.
 """
 
 import argparse, csv, datetime, gzip, json, os, re, sqlite3, sys, urllib.request
@@ -36,6 +40,7 @@ from email.utils import parsedate_to_datetime
 
 UCSC = 'https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/'
 HGNC = 'https://storage.googleapis.com/public-download-files/hgnc/tsv/tsv/hgnc_complete_set.txt'
+MANE = 'https://ftp.ncbi.nlm.nih.gov/refseq/MANE/MANE_human/current/'
 OLD_DB = 'https://proteinpaint.stjude.org/ppSupport/genes.hg38.db'
 # genes that every build must have a default RefSeq and GENCODE isoform for
 LANDMARKS = ['TP53', 'KRAS', 'EZH2', 'MYC', 'BRAF', 'EGFR', 'RUNX1', 'SETD2', 'KMT2D', 'BCR', 'ABL1']
@@ -72,6 +77,19 @@ def latest_gencode():
 	if not versions:
 		raise SystemExit('no wgEncodeGencodeCompV* table found at UCSC')
 	return max(map(int, versions))
+
+
+def mane_release(cache):
+	"""(release, {accession with version: 'Select' | 'Plus Clinical'}), for the RefSeq and the Ensembl transcript of each pair"""
+	with urllib.request.urlopen(MANE) as r:
+		found = re.search(r'MANE\.GRCh38\.v([\d.]+)\.summary\.txt\.gz', r.read().decode())
+	if not found:
+		raise SystemExit('no MANE summary file found at ' + MANE)
+	status = {}
+	for l in rows(fetch(MANE + found.group(0), cache)):
+		if l[9].startswith('MANE '):
+			status[l[5]] = status[l[7]] = l[9][5:]
+	return found.group(1), status
 
 
 def base(accession):
@@ -152,8 +170,15 @@ def build(args):
 
 	# ---------- RefSeq
 	product = {l[0]: l[3] for l in rows(f('ncbiRefSeqLink'))}
+	mane_version, mane = mane_release(args.cache)
 	select = {l[1] for l in rows(f('ncbiRefSeqSelect'))}
+	# a gene's MANE Select transcript is its default; RefSeq Select decides only for a gene with none
+	mane_genes = {l[12] for l in rows(f('ncbiRefSeqCurated')) if mane.get(l[1]) == 'Select'}
+	select = {l[1] for l in rows(f('ncbiRefSeqCurated')) if mane.get(l[1]) == 'Select' or (l[1] in select and l[12] not in mane_genes)}
 	refseq = [gene_model(l, l[12], product.get(l[1])) for l in rows(f('ncbiRefSeqCurated'))]
+	for _, _, _, m in refseq:
+		if m['isoform'] in mane:
+			m['mane'] = mane[m['isoform']]
 
 	# ---------- GENCODE
 	attrs = {l[4]: l for l in rows(f(f'wgEncodeGencodeAttrsV{v}'))}  # transcriptId -> row
@@ -167,6 +192,8 @@ def build(args):
 		# the chrY copy of a PAR transcript is the same accession, as in RefSeq
 		l[1] = l[1].replace('_PAR_Y', '')
 		gencode.append(gene_model(l, l[12], desc, category) + (is_canonical,))
+		if l[1] in mane:
+			gencode[-1][3]['mane'] = mane[l[1]]
 
 	write_track(list(refseq), os.path.join(args.out, 'refGene.hg38.gz'))
 	write_track([g[:4] for g in gencode], os.path.join(args.out, f'gencode.v{v}.hg38.gz'))
@@ -240,7 +267,7 @@ CREATE TABLE buildDate (date char(100), sources text);
 	db.executemany('insert into codingGenes values (?)', [(n,) for n in coding])
 
 	today = datetime.date.today().isoformat()
-	sources = f"RefSeq: UCSC ncbiRefSeqCurated {source_dates['ncbiRefSeqCurated.txt.gz']}; GENCODE v{v}; HGNC {source_dates['hgnc_complete_set.txt']}"
+	sources = f"RefSeq: UCSC ncbiRefSeqCurated {source_dates['ncbiRefSeqCurated.txt.gz']}; GENCODE v{v}; MANE v{mane_version}; HGNC {source_dates['hgnc_complete_set.txt']}"
 	db.execute('insert into buildDate values (?,?)', (today, sources))
 	db.executescript(
 		"""
@@ -272,10 +299,14 @@ def selfcheck(db):
 	assert q('select count(*) from retiredgenes') > 50000, 'too few retired versions'
 	assert q('select count(*) from retiredgenes r join genes g on g.isoform=r.isoform') == 0, 'a version is both current and retired'
 	assert q('select count(*) from codingGenes') > 19000, 'too few coding genes'
+	for prefix in ('NM_%', 'ENST%'):
+		n = q("""select count(*) from genes where isoform like ? and json_extract(genemodel,'$.mane')='Select'""", prefix)
+		assert n > 18000, f'only {n} {prefix[:-1]} transcripts are MANE Select: the MANE release does not match this annotation'
+	assert q("""select count(*) from genes where json_extract(genemodel,'$.mane')='Select' and isdefault=0""") == 0, 'a MANE Select transcript is not the default'
 	for gene in LANDMARKS:
 		for prefix in ('NM_%', 'ENST%'):
-			n = q('select count(*) from genes where name=? and isdefault=1 and isoform like ?', gene, prefix)
-			assert n >= 1, f'{gene} has no default {prefix[:-1]} isoform'
+			n = q("""select count(*) from genes where name=? and isdefault=1 and isoform like ? and json_extract(genemodel,'$.mane')='Select'""", gene, prefix)
+			assert n >= 1, f'{gene} has no default MANE Select {prefix[:-1]} isoform'
 		assert q('select count(*) from gene2coord where name=?', gene) == 1, f'{gene} missing from gene2coord'
 		assert q('select count(*) from gene2canonicalisoform where gene=?', gene) == 1, f'{gene} has no canonical isoform'
 
