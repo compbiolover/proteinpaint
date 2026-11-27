@@ -65,6 +65,8 @@ export function getResult(g, q) {
 			symbol = q.input
 		}
 		const tmp = g.genedb.getjsonbyname.all(symbol)
+		// a retired version is not among the models of its gene; add it when it is the one asked for
+		if (g.genedb.mapRetiredIsoform?.has(q.input.toUpperCase())) tmp.push(...g.genedb.getjsonbyisoform.all(q.input))
 		result.gmlst = tmp.map(i => {
 			const j = JSON.parse(i.genemodel)
 			/* gene coordinate is from bed files with start=0-based, and stop=not included for feature display

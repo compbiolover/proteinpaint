@@ -51,7 +51,8 @@ transcript at any version or none (`resolveIsoform()` in `server/src/genedbLooku
 - The GDC gene db (GENCODE v36, frozen with each GDC data release) and `genes.hg38.mmrf.db`
   (GENCODE v32) are pinned on purpose. Do not rebuild them here.
 - hg19, mm10 and the other genomes have no builder in this repo.
-- Retired transcript versions (`ncbiRefSeqHistorical`) are not loaded: a retired version opens
-  the current model of the same transcript.
+- Retired RefSeq versions (`ncbiRefSeqHistorical`) go in the `retiredgenes` table and open only
+  when asked for by their exact accession. GENCODE has no such table: a retired ENST version
+  opens the current model, with a note in the gene view.
 - The test fixtures under `server/test/tp/anno/` stay as they are: they are the unversioned
   layout that the tests of the old form run against.

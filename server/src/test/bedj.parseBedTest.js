@@ -39,7 +39,7 @@ tape(
 		]
 		const expected = {
 			name: 'TP53',
-			isoform: 'ENST00000413465',
+			isoform: 'ENST00000413465.6',
 			strand: '-',
 			exon: [
 				[7676520, 7676594],
@@ -183,7 +183,7 @@ tape(
 		]
 		const expected = {
 			name: 'IGKC',
-			isoform: 'ENST00000390237',
+			isoform: 'ENST00000390237.2',
 			strand: '-',
 			exon: [[88857160, 88857683]],
 			rnalen: 523,
@@ -327,3 +327,13 @@ tape(
 		test.end()
 	}
 )
+
+tape('a description is found by the accession with or without its version', function (test) {
+	const line = ['chr1', '100', '200', 'ENST00000413465.6', '0', '+', '100', '100', '0', '1', '100,', '0,']
+	line[15] = '-1,'
+	test.equal(parseBedLine(line).isoform, 'ENST00000413465.6', 'the version of a bigBed item is kept')
+	test.equal(parseBedLine(line, new Map([['ENST00000413465', 'a']])).description, 'a', 'keyed without the version')
+	test.equal(parseBedLine(line, new Map([['ENST00000413465.6', 'b']])).description, 'b', 'keyed with the version')
+	test.equal(parseBedLine(line, new Map([['ENST00000000001', 'c']])).description, undefined, 'another transcript')
+	test.end()
+})

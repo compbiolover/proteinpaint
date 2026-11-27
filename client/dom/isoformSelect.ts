@@ -259,7 +259,7 @@ export function isoformSelect(opts: IsoformSelectOpts) {
 
 		// DEFAULT label
 		tr.append('td')
-			.text(gm.isdefault ? 'DEFAULT' : '')
+			.text(gm.isdefault ? 'DEFAULT' : gm.retired ? 'RETIRED' : '')
 			.style('font-size', '.6em')
 
 		// isoform name

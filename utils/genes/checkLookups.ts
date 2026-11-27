@@ -2,8 +2,8 @@
 Runs the server's gene lookups against two real gene dbs and prints, for well known transcripts
 asked for without a version, at the current version and at a retired one, which model each db
 opens. Exits 1 when an accession does not resolve, or resolves to another gene, in either db.
-A protein length that differs between the two dbs is printed for review, not failed: a new
-release may legitimately change one.
+A protein length that differs between the two dbs is printed for review, not failed: a db that
+holds retired versions opens the retired model, and a new release may change a current one.
 
 	cd server && npx tsx --conditions=sjpp/dev ../utils/genes/checkLookups.ts <old genes db> <new genes db>
 */
@@ -18,11 +18,12 @@ function load(file: string) {
 		getjsonbyname: db.prepare('select isdefault,genemodel from genes where name=?'),
 		getjsonbyisoform: db.prepare('select isdefault,genemodel from genes where isoform=?')
 	}
-	initGeneDbLookups(genedb, new Set(['genes', 'genealias', 'gene2canonicalisoform']))
+	const tables = db.prepare("select name from sqlite_master where type='table'").all() as { name: string }[]
+	initGeneDbLookups(genedb, new Set(tables.map(t => t.name)))
 	return { genedb, genomicNameRegexp: /[^a-zA-Z0-9.:_-]/ }
 }
 
-// [gene, accessions to ask for]; .1 is retired for each of these RefSeq transcripts
+// [gene, accessions to ask for]; a retired version opens its own model in a db that holds retired versions
 const cases: [string, string[]][] = [
 	[
 		'EZH2',
@@ -48,7 +49,7 @@ function opened(g: any, input: string) {
 	const asked = (r.found_isoform || input).toUpperCase()
 	return primary.find((m: any) => m.isoform.toUpperCase() == asked) || primary.find((m: any) => m.isdefault)
 }
-const show = (m: any) => (m ? `${m.isoform} ${m.cdslen ? m.cdslen / 3 - 1 + ' aa' : 'noncoding'}` : 'NOT FOUND')
+const show = (m: any) => (m ? `${m.isoform} ${m.cdslen ? Math.floor(m.cdslen / 3) - 1 + ' aa' : 'noncoding'}` : 'NOT FOUND')
 
 const [oldFile, newFile] = process.argv.slice(2)
 if (!oldFile || !newFile) throw 'usage: checkLookups.ts <old genes db> <new genes db>'

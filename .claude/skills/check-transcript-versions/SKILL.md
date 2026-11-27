@@ -28,14 +28,20 @@ sessions and data files carry either form. All of them must reach the same trans
    npx tsx --conditions=sjpp/dev ../utils/genes/checkLookups.ts <old genes.hg38.db> <new genes.hg38.db>
    ```
    Every line must be `ok`. A line marked "protein length differs" is not a failure of the
-   lookup: the new release changed that protein. Report each one with both lengths, since every
-   residue number downstream of the change moves for data annotated on the old release
-   (the EZH2 hotspot is Y641 on `NM_004456.1`, 746 aa, and Y646 on `NM_004456.5`, 751 aa).
+   lookup. When the accession on that line is a retired version, the new db opened the retired
+   model, as it should (the EZH2 hotspot is Y641 on `NM_004456.1`, 746 aa, and Y646 on
+   `NM_004456.5`, 751 aa). When it is a current or unversioned accession, the new release changed
+   that protein: report it with both lengths, since every residue number downstream of the change
+   moves for data annotated on the old release.
 
 3. When adding a gene to the check, add it to `cases` in `utils/genes/checkLookups.ts` with one
    accession of each form.
 
 ## Where versions are handled
+
+- The gene view shows a note (`mayShowVersionNote()` in `client/src/block.init.js`) when the
+  transcript opened is a retired version, or is not the version that was asked for.
+- A retired version has no protein domains: the domain db is positioned on the current version.
 
 - `resolveIsoform()` in `server/src/genedbLookups.ts`: what was asked for -> what the db stores.
   Every isoform getter of `genome.genedb` goes through it.

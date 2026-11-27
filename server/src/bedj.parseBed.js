@@ -70,6 +70,7 @@ to parse line as gene file, require following:
 */
 
 import checkReadingFrame from './checkReadingFrame.js'
+import { stripAccessionVersion } from '#shared/helpers.js'
 
 //a valid exonFrames field can only contain members of validFrames, names -1, 0, 1, or 2
 const validFrames = new Set(['-1', '0', '1', '2'])
@@ -78,7 +79,7 @@ export function parseBedLine(l, enst2desc) {
 	const chr = l[0],
 		chromstart = Number(l[2 - 1]),
 		chromstop = l[3 - 1],
-		isoform = l[4 - 1].split('.')[0], // FIXME should not split by . and trim version for generic bb file
+		isoform = l[4 - 1], // with its version, if any; lookups by isoform accept any version
 		strand = l[6 - 1]
 
 	if (strand != '+' && strand != '-') {
@@ -237,10 +238,9 @@ export function parseBedLine(l, enst2desc) {
 		obj.category = category
 	}
 
-	if (enst2desc && enst2desc.has(isoform)) {
-		// may add optional description
-		obj.description = enst2desc.get(isoform)
-	}
+	// may add optional description, which is keyed by the accession with or without its version
+	const description = enst2desc?.get(isoform) ?? enst2desc?.get(stripAccessionVersion(isoform))
+	if (description) obj.description = description
 
 	if (intron.length > 0) obj.intron = intron
 

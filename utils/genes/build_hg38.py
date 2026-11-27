@@ -8,6 +8,9 @@ the version of every transcript accession (NM_004456.5, ENST00000320356.7):
   <out>/genes.hg38.db                gene db
   <out>/diff.md, diff.json           what changed against the previous gene db
 
+The gene db also holds the retired RefSeq versions (NM_004456.1), from UCSC ncbiRefSeqHistorical,
+in a retiredgenes table: the server opens one only when asked for it by its exact accession.
+
 Usage:
   pip install pysam
   python3 utils/genes/build_hg38.py --out <dir> [--gencode 50] [--old-db genes.hg38.db] [--cache <dir>]
@@ -181,6 +184,7 @@ CREATE TABLE refseq2ensembl (ensembl char(100) collate nocase, refseq char(100) 
 CREATE TABLE gene2coord (name char(100) collate nocase, chr char(100) collate nocase, start INTEGER, stop INTEGER);
 CREATE TABLE gene2canonicalisoform (gene character collate nocase, isoform character collate nocase);
 CREATE TABLE codingGenes (name character collate nocase);
+CREATE TABLE retiredgenes (name character varying(50) collate nocase, isoform character varying(50) collate nocase, genemodel json);
 CREATE TABLE buildDate (date char(100), sources text);
 """
 	)
@@ -194,6 +198,11 @@ CREATE TABLE buildDate (date char(100), sources text);
 	old = sqlite3.connect(f'file:{old_db}?mode=ro', uri=True)
 	genes += old.execute("select name,isoform,isdefault,genemodel from genes where isoform='mt'").fetchall()
 	db.executemany('insert into genes values (?,?,?,?)', genes)
+
+	current = {m['isoform'] for _, _, _, m in refseq}
+	retired = [gene_model(l, l[12]) for l in rows(f('ncbiRefSeqHistorical')) if l[1] not in current]
+	retired = [db_row(c, a, b, {**m, 'retired': True}, 0, 'RefGene') for c, a, b, m in retired]
+	db.executemany('insert into retiredgenes values (?,?,?)', [(r[0], r[1], r[3]) for r in retired])
 
 	alias = set()
 	with open(fetch(HGNC, args.cache), encoding='utf-8') as fh:
@@ -241,6 +250,7 @@ CREATE INDEX aliastext on genealias(alias collate nocase);
 CREATE INDEX r2er on refseq2ensembl(refseq);
 CREATE INDEX r2ee on refseq2ensembl(ensembl);
 CREATE INDEX gname on gene2coord(name);
+CREATE INDEX retiredisoform on retiredgenes(isoform collate nocase);
 CREATE INDEX gene2canonicalisoform_gene on gene2canonicalisoform(gene);
 """
 	)
@@ -259,6 +269,8 @@ def selfcheck(db):
 	assert q("select count(*) from genes where isoform like 'N%' and isoform not like '%.%'") == 0, 'RefSeq accession without version'
 	assert q("select count(*) from genes where isoform like 'ENST%' and isoform not like '%.%'") == 0, 'ENST accession without version'
 	assert q('select count(*) from genealias') > 100000, 'too few aliases'
+	assert q('select count(*) from retiredgenes') > 50000, 'too few retired versions'
+	assert q('select count(*) from retiredgenes r join genes g on g.isoform=r.isoform') == 0, 'a version is both current and retired'
 	assert q('select count(*) from codingGenes') > 19000, 'too few coding genes'
 	for gene in LANDMARKS:
 		for prefix in ('NM_%', 'ENST%'):

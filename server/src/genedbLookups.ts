@@ -39,6 +39,12 @@ holds. genedb.resolveIsoform() maps what was asked for to what is stored: the
 exact accession when the db has it, else the stored accession of the same
 transcript, which for a db holding several versions is the latest. Every isoform
 getter goes through it, so no call site has to know which form the db uses.
+
+RETIRED VERSIONS
+A db may hold the models of retired transcript versions (NM_004456.1) in an
+optional retiredgenes table. They are found only by their exact accession, and
+are never among the models of a gene name, so that isoform lists and default
+isoforms are those of the current release.
 *******************************************************************************/
 
 import { stripAccessionVersion } from '#shared/helpers.js'
@@ -125,17 +131,29 @@ export function initGeneDbLookups(genedb: any, tables: Set<string>): void {
 	/* the accession this db stores for the transcript asked for, undefined when it has none.
 	The result differs from the input when the db stores another version, or stores the
 	accession with a version and the input has none, or the other way around */
+	/** k: uppercased accession of a retired version, v: the gene name it belonged to */
+	const mapRetiredIsoform = new Map<string, string>()
+	let retiredStatement: any
+	if (tables.has('retiredgenes')) {
+		for (const row of genedb.db.prepare('select name, isoform from retiredgenes').iterate() as Iterable<GeneRow>) {
+			if (row.isoform) mapRetiredIsoform.set(upper(row.isoform), intern(row.name))
+		}
+		retiredStatement = genedb.db.prepare('select 0 as isdefault, genemodel from retiredgenes where isoform=?')
+		genedb.mapRetiredIsoform = mapRetiredIsoform
+	}
+
 	const resolveIsoform = (accession: unknown): string | undefined => {
 		if (typeof accession != 'string') return
 		const key = upper(accession)
-		if (mapByIsoform.has(key)) return accession
+		if (mapByIsoform.has(key) || mapRetiredIsoform.has(key)) return accession
+		// shortcut: a transcript with retired versions only is not found without its version; resolve to its last one if a dataset needs that
 		const baseKey = stripAccessionVersion(key)
 		return mapByIsoform.has(baseKey) ? baseKey : mapIsoformByBase.get(baseKey)
 	}
 	genedb.resolveIsoform = resolveIsoform
 	const nameByIsoform = (isoform: unknown) => {
 		const stored = resolveIsoform(isoform)
-		return stored ? mapByIsoform.get(upper(stored)) : undefined
+		return stored ? mapByIsoform.get(upper(stored)) ?? mapRetiredIsoform.get(upper(stored)) : undefined
 	}
 
 	genedb.getnamebynameorisoform = {
@@ -158,9 +176,11 @@ export function initGeneDbLookups(genedb: any, tables: Set<string>): void {
 	if (genedb.getjsonbyisoform) {
 		// the sql statement matches the stored accession only, so hand it that
 		const statement = genedb.getjsonbyisoform
+		const statementOf = (isoform: unknown) =>
+			typeof isoform == 'string' && mapRetiredIsoform.has(upper(isoform)) ? retiredStatement : statement
 		genedb.getjsonbyisoform = {
-			get: (isoform: string) => statement.get(resolveIsoform(isoform) ?? isoform),
-			all: (isoform: string) => statement.all(resolveIsoform(isoform) ?? isoform)
+			get: (isoform: string) => statementOf(isoform).get(resolveIsoform(isoform) ?? isoform),
+			all: (isoform: string) => statementOf(isoform).all(resolveIsoform(isoform) ?? isoform)
 		}
 	}
 

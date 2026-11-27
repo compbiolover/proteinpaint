@@ -195,3 +195,34 @@ tape('a gene db holding several versions of a transcript', test => {
 	test.equal(genedb.resolveIsoform('NM_004456.3'), 'NM_004456.10', 'a version the db does not hold: the latest')
 	test.end()
 })
+
+tape('retired versions, held in their own table', test => {
+	const db = new Database(':memory:')
+	db.exec(`create table genes (name character collate nocase, isoform character collate nocase, isdefault smallint, genemodel json);
+		create table retiredgenes (name character collate nocase, isoform character collate nocase, genemodel json);
+		insert into genes values ('EZH2', 'NM_004456.5', 1, '{"isoform":"NM_004456.5"}');
+		insert into retiredgenes values ('EZH2', 'NM_004456.1', '{"isoform":"NM_004456.1","retired":true}'),
+			('OLDGENE', 'NM_000001.2', '{"isoform":"NM_000001.2","retired":true}');`)
+	const genedb: any = { db, getjsonbyisoform: db.prepare('select isdefault,genemodel from genes where isoform=?') }
+	initGeneDbLookups(genedb, new Set(['genes', 'retiredgenes']))
+	const model = (input: string) => JSON.parse(genedb.getjsonbyisoform.get(input).genemodel)
+	test.deepEqual(
+		model('nm_004456.1'),
+		{ isoform: 'NM_004456.1', retired: true },
+		'a retired version opens its own model'
+	)
+	test.deepEqual(genedb.getjsonbyisoform.all('NM_004456.1').length, 1, 'and only that one')
+	test.equal(model('NM_004456').isoform, 'NM_004456.5', 'no version: the current one, never a retired one')
+	test.equal(model('NM_004456.3').isoform, 'NM_004456.5', 'a version held nowhere: the current one')
+	test.equal(model('NM_004456.5').retired, undefined, 'the current version is not marked retired')
+	test.deepEqual(genedb.getnamebyisoform.get('NM_004456.1'), { name: 'EZH2' }, 'the gene of a retired version')
+	test.deepEqual(
+		genedb.getnamebyisoform.get('NM_000001.2'),
+		{ name: 'OLDGENE' },
+		'also of a transcript with no current version'
+	)
+	test.equal(genedb.resolveIsoform('NM_000001'), undefined, 'which is not found without its version')
+	test.ok(genedb.mapRetiredIsoform.has('NM_004456.1'), 'retired accessions are listed for callers')
+	test.notOk(genedb.mapByIsoform.has('NM_004456.1'), 'and are not among the current isoforms')
+	test.end()
+})

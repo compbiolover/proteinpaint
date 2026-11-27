@@ -1,5 +1,7 @@
 Features:
 - A gene or isoform can be opened by a transcript accession at any version or without one (NM_004456, NM_004456.5, ENST00000320356.7), and mutation and methylation data are matched to a gene model the same way, so that a gene database that keeps transcript versions works alongside one that does not
+- A retired RefSeq transcript version (NM_004456.1) opens its own gene model when the gene database has it, and the gene view says when the transcript shown is a retired version or is not the version that was asked for
+- The items of a bigBed gene track keep the version of their transcript accession
 
 DevOps:
 - utils/genes/build_hg38.py builds the hg38 RefSeq and GENCODE tracks and the gene database from the current UCSC and HGNC releases with transcript versions kept, and reports what changed; the "Update gene models" workflow runs it every October
